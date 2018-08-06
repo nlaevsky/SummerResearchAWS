@@ -1,0 +1,55 @@
+import requests
+import os, base64, datetime, hashlib, hmac
+
+def sign(key, msg):
+    return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
+
+def getSignatureKey(key, dateStamp, regionName, serviceName):
+    kDate = sign(('AWS4' + key).encode('utf-8'), dateStamp)
+    kRegion = sign(kDate, regionName)
+    kService = sign(kRegion, serviceName)
+    kSigning = sign(kService, 'aws4_request')
+    return kSigning
+
+method = 'GET'
+service = 's3'
+host = 's3-us-west-2.amazonaws.com'
+region = 'us-west-2'
+
+access_key = 'AKIAJ6F4YWILDQYLJBTQ'
+secret_key = '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'
+
+t = datetime.datetime.utcnow()
+timestamp = t.strftime('%Y%m%dT%H%M%SZ')
+datestamp = t.strftime('%Y%m%d')
+
+#CanonicalRequest
+CanonicalURI = '/nellylaevsky/hsResume'
+CanonicalQueryString = ''
+amzContent = hashlib.sha256(''.encode('utf-8')).hexdigest()
+CanonicalHeaders = 'host:' + host + '\n' + 'x-amz-content-sha256:' + amzContent +'\n' +  'x-amz-date:' + timestamp 
+SignedHeaders = 'host;x-amz-content-sha256;x-amz-date'
+HashedPayload = hashlib.sha256(''.encode('utf-8')).hexdigest()
+CanonicalRequest = method + '\n' + CanonicalURI + '\n' + CanonicalQueryString+ '\n' + CanonicalHeaders + '\n' + '' + '\n' + SignedHeaders + '\n' + HashedPayload
+#print(CanonicalRequest)
+
+#StringToSign
+algorithm = 'AWS4-HMAC-SHA256'
+scope = datestamp + '/' + region + '/' + service + '/' + 'aws4_request'
+string_to_sign = algorithm + '\n' +  timestamp + '\n' +  scope + '\n' +  hashlib.sha256(CanonicalRequest.encode('utf-8')).hexdigest()
+
+#Signature
+signing_key = getSignatureKey(secret_key, datestamp, region, service)
+signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()
+credential = access_key + '/' + scope
+
+#Header
+authorization_header = algorithm + ' ' + 'Credential=' + credential + ',' +  'SignedHeaders=' + SignedHeaders + ',' + 'Signature=' + signature
+headers = {'Authorization':authorization_header, 'x-amz-content-sha256':amzContent, 'x-amz-date':timestamp}
+
+r = requests.get('https://s3-us-west-2.amazonaws.com/nellylaevsky/hsResume', headers=headers)
+print(r, r.headers, r.content)
+
+
+
+
